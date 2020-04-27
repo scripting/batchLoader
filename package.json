@@ -2,7 +2,7 @@
 	"name": "batchloader", 
 	"description": "Ping me to download stuff from S3 into local folders.",
 	"author": "Dave Winer <dave@scripting.com>",
-	"version": "0.4.2",
+	"version": "0.5.2",
 	"main": "batchloader.js",
 	"scripts": {
 		"start": "node batchloader.js"
@@ -10,6 +10,7 @@
 	"dependencies" : {
 		"daveutils": "*",
 		"davehttp": "*",
+		"davefilesystem": "*",
 		"s3folderloader": "*"
 		}, 
 	"license": "MIT",
