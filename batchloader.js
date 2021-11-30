@@ -1,6 +1,10 @@
-var myProductName = "batchLoader", myVersion = "0.5.2";
+var myProductName = "batchLoader", myVersion = "0.5.4";  
 
 //Notes
+	//6/22/20 by DW
+		//it will take a port assignment from process.env.PORT.
+		//turns out domain apps have the current folder set to pagepark's folder
+			//that's going to be weird at times, perhaps?
 	//4/25/20 by DW
 		//added call that loops over all folders looking for codeloc.json files and downloads changes from it
 	//11/26/18 by DW
@@ -14,15 +18,12 @@ const davehttp = require ("davehttp");
 const fs = require ("fs");  
 const filesystem = require ("davefilesystem"); 
 
-var config = {
-	port: 1408,
+var config = { 
+	port: process.env.PORT || 1408,
 	flLogToConsole: true,
 	flAllowAccessFromAnywhere: true, //for davehttp
+	folderToLoopOver: "../",
 	locations: [ 
-		{
-			s3path: "/bloatware.com/code/bloatbase/",
-			folder: "../bloatbase/"
-			}
 		]
 	};
 
@@ -34,7 +35,12 @@ function addToLog (logfilelist) {
 		fs.readFile (logfile, function (err, jsontext) {
 			var jstruct = new Array ();
 			if (!err) {
-				jstruct = JSON.parse (jsontext);
+				try {
+					jstruct = JSON.parse (jsontext);
+					}
+				catch (err) {
+					console.log ("addToLog: err.message == " + err.message + ", logfile == " + logfile + ", jsontext == " + jsontext);
+					}
 				}
 			jstruct.unshift ({
 				when: new Date (),
@@ -88,7 +94,7 @@ function loadFromConfigList (callback) {
 	loadone (0);
 	}
 function loopOverFolders (completionCallback) { //4/25/20 by DW
-	//Changes
+	//Changes 
 		//4/25/20; 11:18:44 AM by DW
 			//Loop over the sibling directories. Start with a list like this -- 
 				//[
@@ -103,7 +109,9 @@ function loopOverFolders (completionCallback) { //4/25/20 by DW
 					//"startforever.opml",
 					//"startforever.sh"
 					//]
-	var parentfolder = "../", logarray = new Array ();
+	var parentfolder = config.folderToLoopOver; //6/22/20 by DW
+	//var parentfolder = "../";
+	var logarray = new Array ();
 	var logfilelist = new Array ();
 	fs.readdir (parentfolder, function (err, theListOfFiles) {
 		function loadfolder (folder, callback) {
@@ -111,26 +119,24 @@ function loopOverFolders (completionCallback) { //4/25/20 by DW
 			var flocation = folder + fnameLocationFile;
 			fs.readFile (flocation, function (err, jsontext) {
 				if (err) {
-					console.log (err.message);
+					//console.log (err.message);
 					callback ();
 					}
 				else {
 					var jstruct = JSON.parse (jsontext);
-					//console.log ("folder == " + folder + ", s3path == " + jstruct.s3path);   
-					folderloader.load (jstruct.s3path, folder, function (jsontext) {
-						var jstruct = JSON.parse (jsontext);
-						for (var x in jstruct) {
-							logfilelist.push (x);
-							}
-						callback ();
-						});
-					//folderloader.load (jstruct.s3path, folder, function (logtext) {
-						//if (logtext.length == 0) {
-							//logtext = "No changes.";
-							//}
-						//logarray.push (logtext);
-						//callback ();
-						//});
+					console.log ("folder == " + folder + ", s3path == " + jstruct.s3path);   
+					try {
+						folderloader.load (jstruct.s3path, folder, function (jsontext) {
+							var jstruct = JSON.parse (jsontext);
+							for (var x in jstruct) {
+								logfilelist.push (x);
+								}
+							callback ();
+							});
+						}
+					catch (err) {
+						console.log ("loadfolder: err.message == " + err.message);
+						}
 					}
 				});
 			}
@@ -167,13 +173,10 @@ function everyMinute () {
 		}
 	readConfig (); //you don't have to reboot to change the configuration
 	}
+
+console.log ("\n" + myProductName + " v" + myVersion + ", dirname == " + __dirname);
+
 readConfig (function () {
-	//loopOverFolders (function (logfilelist) { //uncomment for local testing
-		//if (logfilelist.length) {
-			//addToLog (logfilelist);
-			//}
-		//console.log (utils.jsonStringify (logfilelist));
-		//});
 	davehttp.start (config, function (theRequest) {
 		switch (theRequest.lowerpath) {
 			case "/now":
@@ -184,16 +187,22 @@ readConfig (function () {
 					theRequest.httpReturn (200, "text/html", utils.jsonStringify (logarray));
 					});
 				return;
-			case "/reloadfolders":
-				loopOverFolders (function (logfilelist) {
-					if (logfilelist.length) {
+			case "/reloadfolders": 
+				try {
+					loopOverFolders (function (logfilelist) {
 						addToLog (logfilelist);
-						}
-					theRequest.httpReturn (200, "application/json", utils.jsonStringify (logfilelist));
-					});
+						theRequest.httpReturn (200, "application/json", utils.jsonStringify (logfilelist));
+						});
+					}
+				catch (err) {
+					console.log ("batchLoader: err.message == " + err.message);
+					theRequest.httpReturn (500, "text/plain", err.message);
+					}
+				return;
+			default:
+				theRequest.httpReturn (404, "text/plain", "Not found.");
 				return;
 			}
-		theRequest.httpReturn (404, "text/plain", "Not found.");
 		});
 	utils.runEveryMinute (everyMinute);
 	});
