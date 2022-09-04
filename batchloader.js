@@ -1,4 +1,4 @@
-var myProductName = "batchLoader", myVersion = "0.5.4";  
+var myProductName = "batchLoader", myVersion = "0.5.4";   
 
 //Notes
 	//6/22/20 by DW
